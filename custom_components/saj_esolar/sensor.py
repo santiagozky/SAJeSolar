@@ -5,6 +5,7 @@ This Sensor will read the private api of the eSolar portal at https://fop.saj-el
 
 import asyncio
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant import config_entries
 import datetime
 import calendar
 
@@ -38,6 +39,45 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import Throttle, dt
+
+
+class SajConfigFlow(config_entries.ConfigFlow, domain='saj_esolar'):
+
+    VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
+
+    async def async_step_user(self, user_input=None):
+        """Handle the initial step where the user provides credentials."""
+
+        errors = {}
+
+        if user_input is not None:
+            # Here you should validate the user_input
+            # You can add actual authentication logic (API call, etc.)
+            if self._validate_credentials(user_input['username'], user_input['password']):
+                # Return the data if the credentials are correct
+                return self.async_create_entry(title="Example", data=user_input)
+            else:
+                errors['base'] = 'invalid_auth'
+
+        # Define the schema for the form
+        data_schema = vol.Schema({
+            vol.Required('username'): str,
+            vol.Required('password'): str,
+            vol.Required('model'): str
+        })
+
+        return self.async_show_form(
+            step_id='user',
+            data_schema=data_schema,
+            errors=errors
+        )
+
+    def _validate_credentials(self, username, password):
+        """Validate the provided credentials."""
+        # Replace with actual validation (e.g., API call)
+        return True
+
 
 def add_months(sourcedate, months):
     month = sourcedate.month - 1 + months
