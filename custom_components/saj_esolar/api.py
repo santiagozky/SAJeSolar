@@ -1,8 +1,15 @@
-import aiohttp
-import logging
+"""API client for interacting with the eSolar site."""
+
 import calendar
-from datetime import date, datetime, timedelta, UTC
+from datetime import UTC, date, datetime, timedelta
+import logging
+
+import aiohttp
+
 from .const import DEVICE_TYPES
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,39 +29,103 @@ def _add_years(d, years):
         return d + (date(d.year + years, 1, 1) - date(d.year, 1, 1))
 
 
+class EsolarProvider:
+    """Handless the information of the url of a particular esolar provider (e.g. saj, greenheiss)."""
+
+    def __init__(self, host, path, protocol, verify_ssl) -> None:
+        """Initialize the sensor with the specified host, path, and protocol.
+
+        Args:
+            host (str): The hostname or IP address of the target device.
+            path (str): The API or resource path to access on the device.
+            protocol (str): The communication protocol to use (e.g., 'http', 'https').
+        """
+        self.host = host
+        self.path = path
+        self.protocol = protocol
+        self.verify_ssl = verify_ssl
+
+    def getBaseDomain(self):
+        """Returns the domain part of the provider url."""
+        return f"{self.protocol}://{self.host}"
+
+    def getBaseUrl(self):
+        """Returns the base path of the application.
+
+        It is mostly 'cloud' or 'saj'. but might change depending on the provider
+        """
+        return f"{self.getBaseDomain()}/{self.path}"
+
+    def getLoginUrl(self):
+        """The url where users can login."""
+        return f"{self.getBaseUrl()}/login"
+
+    def getVerifySSL(self):
+        """Return if SSL should be verified."""
+        return self.verify_ssl
+
+
+class SAJeSolarMeterData:
+    """Handle eSolar object and limit updates."""
+
+    def __init__(
+        self,
+        username,
+        password,
+        sensors,
+        plant_id,
+        provider,
+    ) -> None:
+        """Initialize the data object."""
+
+        self.provider = provider
+        self.username = username
+        self.password = password
+        self.sensors = sensors
+        self.plant_id = plant_id
+        self._data = None
+
+
 class ApiError(Exception):
-    pass
+    """Custom exception for API errors."""
 
 
 class ApiAuthError(Exception):
-    pass
+    """Custom exception for API authentication errors."""
 
 
 class EsolarApiClient:
     """API client for interacting with the eSolar site."""
 
-    def __init__(self, username: str, password: str, provider) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: SAJeSolarMeterData,
+    ) -> None:
         """Initialize the API client.
 
         Args:
-            username (str): The username for authentication.
-            password (str): The password for authentication.
-            provider: An instance of the EsolarProvider class.
+            hass: homeassistant object
+            config: the configuration of the integration.
         """
-        self.username = username
-        self.password = password
-        self.provider = provider
-        self._session = aiohttp.ClientSession()
+
+        self.config = config
+        self.provider = config.provider
+        self.username = config.username
+        self.password = config.password
+        self._session = async_create_clientsession(
+            hass, verify_ssl=self.provider.getVerifySSL()
+        )  # some providers have broken SSL chains
 
     async def fetch_data(self):
         """Fetch and aggregate data from the eSolar site."""
+        data = {}
         try:
-            _LOGGER.debug("Type of date: %s", type(date))
             today = date.today()
             clientDate = today.strftime("%Y-%m-%d")
 
             # Login to eSolar API
-            url = self._provider.getLoginUrl()
+            url = self.provider.getLoginUrl()
             payload = {
                 "lang": "en",
                 "username": self.username,
@@ -70,9 +141,9 @@ class EsolarApiClient:
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Cookie": "org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en; op:_lang=en",
                 "DNT": "1",
-                "Host": self._provider.host,
-                "Origin": self._provider.host,
-                "Referer": self._provider.getLoginUrl(),
+                "Host": self.provider.host,
+                "Origin": self.provider.host,
+                "Referer": self.provider.getLoginUrl(),
                 "sec-ch-ua": '" Not;A Brand";v="99", "Google Chrome";v="91", "Chromium";v="91"',
                 "sec-ch-ua-mobile": "?0",
                 "Sec-Fetch-Dest": "document",
@@ -86,12 +157,15 @@ class EsolarApiClient:
                 url, headers=headers_login, data=payload
             )
 
-            if response.status != 200:
+            if response.status in {401, 403}:
                 _LOGGER.error("%s returned %s", response.url, response.status)
                 raise ApiAuthError("Authentication failed with eSolar API")
+            if response.status != 200:
+                _LOGGER.error("%s returned %s", response.url, response.status)
+                raise ApiError("Authentication failed with eSolar API")
 
             # Get API Plant info from Esolar Portal
-            url2 = f"{self._provider.getBaseUrl()}/monitor/site/getUserPlantList"
+            url2 = f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
             headers = {
                 "Connection": "keep-alive",
                 "sec-ch-ua": '" Not;A Brand";v="99", "Google Chrome";v="91", "Chromium";v="91"',
@@ -101,11 +175,11 @@ class EsolarApiClient:
                 "sec-ch-ua-mobile": "?0",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.106 Safari/537.36",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "Origin": self._provider.host,
+                "Origin": self.provider.host,
                 "Sec-Fetch-Site": "same-origin",
                 "Sec-Fetch-Mode": "cors",
                 "Sec-Fetch-Dest": "empty",
-                "Referer": f"{self._provider.getBaseUrl()}/monitor/home/index",
+                "Referer": f"{self.provider.getBaseUrl()}/monitor/home/index",
                 "Accept-Language": "nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7",
             }
 
@@ -117,10 +191,10 @@ class EsolarApiClient:
                 raise ApiError("Error fetching plant info from eSolar API")
 
             plantInfo = await response2.json()
-            plantuid = plantInfo["plantList"][self.plant_id]["plantuid"]
+            plantuid = plantInfo["plantList"][self.config.plant_id]["plantuid"]
 
             # Get API Plant Solar Details
-            url3 = f"{self._provider.getBaseUrl()}/monitor/site/getPlantDetailInfo"
+            url3 = f"{self.provider.getBaseUrl()}/monitor/site/getPlantDetailInfo"
             payload3 = f"plantuid={plantuid}&clientDate={clientDate}"
 
             response3 = await self._session.post(url3, headers=headers, data=payload3)
@@ -134,7 +208,7 @@ class EsolarApiClient:
             plantDetails.update(plantInfo)
 
             devicesInfoUrl = (
-                f"{self._provider.getBaseUrl()}/cloudMonitor/device/findDevicePageList"
+                f"{self.provider.getBaseUrl()}/cloudMonitor/device/findDevicePageList"
             )
             devicesInfoPayload = f"officeId=&pageNo=&pageSize=&orderName=1&orderType=2&plantuid={plantuid}&deviceStatus=&localDate=&localMonth="
             deviceInfoReponse = await self._session.post(
@@ -148,7 +222,7 @@ class EsolarApiClient:
 
             devicesInfoData = await deviceInfoReponse.json()
             plantDetails.update(devicesInfoData)
-            if self.sensors == "h1":
+            if self.config.sensors == "h1":
                 deviceSnArr = next(
                     (
                         item["devicesn"]
@@ -171,8 +245,8 @@ class EsolarApiClient:
             nextChartYear = _add_years(today, 1).strftime("%Y")
             chartYear = today.strftime("%Y")
             epochmilliseconds = int(datetime.now(UTC).timestamp() * 1000)
-            elecDevicesn = deviceSnArr if self.sensors == "h1" else ""
-            url4 = f"{self._provider.getBaseUrl()}/monitor/site/getPlantDetailChart2?plantuid={plantuid}&chartDateType=1&energyType=0&clientDate={clientDate}&deviceSnArr={deviceSnArr}&chartCountType=2&previousChartDay={previousChartDay}&nextChartDay={nextChartDay}&chartDay={chartDay}&previousChartMonth={previousChartMonth}&nextChartMonth={nextChartMonth}&chartMonth={chartMonth}&previousChartYear={previousChartYear}&nextChartYear={nextChartYear}&chartYear={chartYear}&elecDevicesn={elecDevicesn}&_={epochmilliseconds}"
+            elecDevicesn = deviceSnArr if self.config.sensors == "h1" else ""
+            url4 = f"{self.provider.getBaseUrl()}/monitor/site/getPlantDetailChart2?plantuid={plantuid}&chartDateType=1&energyType=0&clientDate={clientDate}&deviceSnArr={deviceSnArr}&chartCountType=2&previousChartDay={previousChartDay}&nextChartDay={nextChartDay}&chartDay={chartDay}&previousChartMonth={previousChartMonth}&nextChartMonth={nextChartMonth}&chartMonth={chartMonth}&previousChartYear={previousChartYear}&nextChartYear={nextChartYear}&chartYear={chartYear}&elecDevicesn={elecDevicesn}&_={epochmilliseconds}"
             # _LOGGER.error(f"PlantCharts URL: {url4}")
             response4 = await self._session.post(url4, headers=headers)
 
@@ -185,9 +259,9 @@ class EsolarApiClient:
             plantDetails.update(plantcharts)
 
             # H1 Module
-            if self.sensors == "h1":
+            if self.config.sensors == "h1":
                 # getStoreOrAcDevicePowerInfo
-                url_getStoreOrAcDevicePowerInfo = f"{self._provider.getBaseUrl()}/monitor/site/getStoreOrAcDevicePowerInfo?plantuid=&devicesn={deviceSnArr}&_={epochmilliseconds}"
+                url_getStoreOrAcDevicePowerInfo = f"{self.provider.getBaseUrl()}/monitor/site/getStoreOrAcDevicePowerInfo?plantuid=&devicesn={deviceSnArr}&_={epochmilliseconds}"
 
                 response_getStoreOrAcDevicePowerInfo = await self._session.post(
                     url_getStoreOrAcDevicePowerInfo, headers=headers
@@ -199,7 +273,7 @@ class EsolarApiClient:
                         response_getStoreOrAcDevicePowerInfo.url,
                         response_getStoreOrAcDevicePowerInfo.status,
                     )
-                    return
+                    raise ApiError("Error fetching H1 module data from eSolar API")
 
                 result_getStoreOrAcDevicePowerInfo = (
                     await response_getStoreOrAcDevicePowerInfo.json()
@@ -210,16 +284,16 @@ class EsolarApiClient:
                     result_getStoreOrAcDevicePowerInfo,
                 )
 
-            elif self.sensors == "None":
-                self._data = plantDetails
+            elif self.config.sensors == "None":
+                data = plantDetails
             else:
                 # Data = plantdetails
-                self._data = plantDetails
+                data = plantDetails
 
             # Sec module
-            if self.sensors == "saj_sec":
+            if self.config.sensors == "saj_sec":
                 # getPlantMeterModuleList
-                url_module = f"{self._provider.getBaseUrl()}/cloudmonitor/plantMeterModule/getPlantMeterModuleList"
+                url_module = f"{self.provider.getBaseUrl()}/cloudmonitor/plantMeterModule/getPlantMeterModuleList"
 
                 payload_module = f"pageNo=&pageSize=&plantUid={plantuid}"
 
@@ -250,7 +324,7 @@ class EsolarApiClient:
                 _LOGGER.debug(moduleSn)
 
                 # findDevicePageList
-                url_findDevicePageList = f"{self._provider.getBaseUrl()}/cloudMonitor/device/findDevicePageList"
+                url_findDevicePageList = f"{self.provider.getBaseUrl()}/cloudMonitor/device/findDevicePageList"
 
                 payload_findDevicePageList = f"officeId=1&pageNo=&pageSize=&orderName=1&orderType=2&plantuid={plantuid}&deviceStatus=&localDate={chartMonth}&localMonth={chartMonth}"
 
@@ -276,7 +350,9 @@ class EsolarApiClient:
                 plantDetails.update(temp_findDevicePageList)
 
                 # getPlantMeterDetailInfo
-                url_getPlantMeterDetailInfo = f"{self._provider.getBaseUrl()}/monitor/site/getPlantMeterDetailInfo"
+                url_getPlantMeterDetailInfo = (
+                    f"{self.provider.getBaseUrl()}/monitor/site/getPlantMeterDetailInfo"
+                )
 
                 payload_getPlantMeterDetailInfo = (
                     f"plantuid={plantuid}&clientDate={clientDate}"
@@ -306,7 +382,7 @@ class EsolarApiClient:
                 plantDetails.update(temp_getPlantMeterDetailInfo)
 
                 # getPlantMeterEnergyPreviewInfo
-                url_getPlantMeterEnergyPreviewInfo = f"{self._provider.getBaseUrl()}/monitor/site/getPlantMeterEnergyPreviewInfo?plantuid={plantuid}&moduleSn={moduleSn}&_={epochmilliseconds}"
+                url_getPlantMeterEnergyPreviewInfo = f"{self.provider.getBaseUrl()}/monitor/site/getPlantMeterEnergyPreviewInfo?plantuid={plantuid}&moduleSn={moduleSn}&_={epochmilliseconds}"
 
                 response_getPlantMeterEnergyPreviewInfo = await self._session.get(
                     url_getPlantMeterEnergyPreviewInfo, headers=headers
@@ -332,7 +408,7 @@ class EsolarApiClient:
                 plantDetails.update(temp_getPlantMeterEnergyPreviewInfo)
 
                 # Get Sec Meter details
-                url_getPlantMeterChartData = f"{self._provider.getBaseUrl()}/monitor/site/getPlantMeterChartData?plantuid={plantuid}&chartDateType=1&energyType=0&clientDate={clientDate}&deviceSnArr=&chartCountType=2&previousChartDay={previousChartDay}&nextChartDay={nextChartDay}&chartDay={chartDay}&previousChartMonth={previousChartMonth}&nextChartMonth={nextChartMonth}&chartMonth={chartMonth}&previousChartYear={previousChartYear}&nextChartYear={nextChartYear}&chartYear={chartYear}&moduleSn={moduleSn}&_={epochmilliseconds}"
+                url_getPlantMeterChartData = f"{self.provider.getBaseUrl()}/monitor/site/getPlantMeterChartData?plantuid={plantuid}&chartDateType=1&energyType=0&clientDate={clientDate}&deviceSnArr=&chartCountType=2&previousChartDay={previousChartDay}&nextChartDay={nextChartDay}&chartDay={chartDay}&previousChartMonth={previousChartMonth}&nextChartMonth={nextChartMonth}&chartMonth={chartMonth}&previousChartYear={previousChartYear}&nextChartYear={nextChartYear}&chartYear={chartYear}&moduleSn={moduleSn}&_={epochmilliseconds}"
 
                 response_getPlantMeterChartData = await self._session.post(
                     url_getPlantMeterChartData, headers=headers
@@ -356,12 +432,12 @@ class EsolarApiClient:
                 plantDetails.update(temp_getPlantMeterChartData)
 
                 # Data = plantdetails including Sec module
-                self._data = plantDetails
-            elif self.sensors == "None":
-                self._data = plantDetails
+                data = plantDetails
+            elif self.config.sensors == "None":
+                data = plantDetails
             else:
                 # Data = plantdetails Wtihout Sec module
-                self._data = plantDetails
+                data = plantDetails
 
         # Error logging
         except aiohttp.ClientError as err:
@@ -372,5 +448,4 @@ class EsolarApiClient:
             raise ApiError(
                 "Timeout error occurred while polling eSolar using url: %s"
             ) from err
-        finally:
-            await self._session.close()
+        return data
