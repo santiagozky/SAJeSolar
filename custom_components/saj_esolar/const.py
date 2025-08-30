@@ -8,6 +8,14 @@ from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 
 from typing import Final
 
+DEVICE_TYPES = {
+    "Inverter": 0,
+    "Meter": 1,  # TODO: Pending to confirm
+    "Battery": 2,
+    0: "Inverter",
+    1: "Meter",  # TODO: Pending to confirm
+    2: "Battery",
+}
 
 SENSOR_LIST = {
     "nowPower",
