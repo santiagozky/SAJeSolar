@@ -1,3 +1,7 @@
+ This project is a modification of the original from https://github.com/djansen1987/SAJeSolar. It has been modified since saj clients have been moved to a new platform while the clients of rebranded products have stayed in the original.
+
+ This integration will continue to support the original saj esolar platform.
+
 # !! Important !! **SAJ will change their portal this month to the new portal. This will probably break this integration. If someone is willing to provide fixed code this is welcome, but I do not own an SAJ product anymore and therefor cannot test.**
 My advice would be to switch over to local connection via this HACS integration: https://github.com/wimb0/home-assistant-saj-r5-modbus
 <br><br>
