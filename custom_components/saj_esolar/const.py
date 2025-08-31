@@ -7,6 +7,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 
+DOMAIN = "esolar_greenheiss"
 DEVICE_TYPES = {
     "Inverter": 0,
     "Meter": 1,  # TODO: Pending to confirm

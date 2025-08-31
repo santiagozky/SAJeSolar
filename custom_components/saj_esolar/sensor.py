@@ -55,8 +55,10 @@ PLATFORM_SCHEMA = SENSOR_PLATFORM_SCHEMA.extend(
         ),
         vol.Optional(CONF_SENSORS, default="None"): cv.string,  # type: ignore
         vol.Optional(CONF_PLANT_ID, default=0): cv.positive_int,  # type: ignore
-        vol.Optional("provider_domain", default="fop.saj-electric.com"): cv.string,
-        vol.Optional("provider_path", default="saj"): cv.string,
+        vol.Optional(
+            "provider_domain", default="inversores-style.greenheiss.com"
+        ): cv.string,
+        vol.Optional("provider_path", default="cloud"): cv.string,
         vol.Optional("provider_protocol", default="https"): cv.string,
         vol.Optional("provider_ssl", default=True): cv.boolean,
     }
@@ -87,7 +89,9 @@ async def async_setup_platform(
 
     api = EsolarApiClient(hass, data)
     coordinator = EsolarDataUpdateCoordinator(hass, api)
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator.async_refresh()
+    # async_config_entry_first_refresh only works with config flog
+    # await coordinator.async_config_entry_first_refresh()
 
     entities = []
     for description in SENSOR_TYPES:

@@ -126,7 +126,7 @@ class EsolarApiClient:
         try:
             today = date.today()
             clientDate = today.strftime("%Y-%m-%d")
-            self._verifyLogin()
+            await self._verifyLogin()
             # Get API Plant info from Esolar Portal
             url2 = f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
             headers = {
@@ -404,18 +404,20 @@ class EsolarApiClient:
 
         # Error logging
         except aiohttp.ClientError as err:
-            _LOGGER.error("Cannot poll eSolar using url: %s")
-            raise ApiError("Cannot poll eSolar using url: %s") from err
+            _LOGGER.error("Cannot poll eSolar using url: %s", err)
+            raise ApiError("Cannot poll eSolar using url") from err
         except TimeoutError as err:
-            _LOGGER.error("Timeout error occurred while polling eSolar using url: %s")
-            raise ApiError(
-                "Timeout error occurred while polling eSolar using url: %s"
-            ) from err
+            _LOGGER.error(
+                "Timeout error occurred while polling eSolar using url: %s", err
+            )
+            raise ApiError("Timeout error occurred while polling eSolar ") from err
         return data
 
     async def _verifyLogin(self) -> None:
         """Verify login to eSolar site."""
         url = self.provider.getLoginUrl()
+        _LOGGER.debug("trying to login on: %s", url)
+
         payload = {
             "lang": "en",
             "username": self.username,
@@ -444,6 +446,7 @@ class EsolarApiClient:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
         }
         response = await self._session.post(url, headers=headers_login, data=payload)
+        _LOGGER.debug("login response: %s, %s", response.status, response.text)
 
         if response.status in {401, 403}:
             _LOGGER.error("%s returned %s", response.url, response.status)
