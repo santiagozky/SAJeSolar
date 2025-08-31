@@ -1,12 +1,11 @@
+from typing import Final
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
-
-
-from typing import Final
 
 DEVICE_TYPES = {
     "Inverter": 0,

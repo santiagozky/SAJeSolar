@@ -6,10 +6,10 @@ import logging
 
 import aiohttp
 
-from .const import DEVICE_TYPES
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
+from .const import DEVICE_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,13 +32,16 @@ def _add_years(d, years):
 class EsolarProvider:
     """Handless the information of the url of a particular esolar provider (e.g. saj, greenheiss)."""
 
-    def __init__(self, host, path, protocol, verify_ssl) -> None:
+    def __init__(
+        self, host: str, path: str, protocol: str, verify_ssl: bool = True
+    ) -> None:
         """Initialize the sensor with the specified host, path, and protocol.
 
         Args:
             host (str): The hostname or IP address of the target device.
             path (str): The API or resource path to access on the device.
             protocol (str): The communication protocol to use (e.g., 'http', 'https').
+            verify_ssl (bool): Whether to verify SSL certificates. Default to true.
         """
         self.host = host
         self.path = path
@@ -66,15 +69,15 @@ class EsolarProvider:
 
 
 class SAJeSolarMeterData:
-    """Handle eSolar object and limit updates."""
+    """Holds configuration for the integration."""
 
     def __init__(
         self,
-        username,
-        password,
-        sensors,
-        plant_id,
-        provider,
+        username: str,
+        password: str,
+        sensors: str,
+        plant_id: int,
+        provider: EsolarProvider,
     ) -> None:
         """Initialize the data object."""
 
@@ -123,47 +126,7 @@ class EsolarApiClient:
         try:
             today = date.today()
             clientDate = today.strftime("%Y-%m-%d")
-
-            # Login to eSolar API
-            url = self.provider.getLoginUrl()
-            payload = {
-                "lang": "en",
-                "username": self.username,
-                "password": self.password,
-                "rememberMe": "true",
-            }
-            headers_login = {
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Accept-Language": "nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Cache-Control": "max-age=0",
-                "Connection": "keep-alive",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Cookie": "org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en; op:_lang=en",
-                "DNT": "1",
-                "Host": self.provider.host,
-                "Origin": self.provider.host,
-                "Referer": self.provider.getLoginUrl(),
-                "sec-ch-ua": '" Not;A Brand";v="99", "Google Chrome";v="91", "Chromium";v="91"',
-                "sec-ch-ua-mobile": "?0",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "same-origin",
-                "Sec-Fetch-User": "?1",
-                "Upgrade-Insecure-Requests": "1",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
-            }
-            response = await self._session.post(
-                url, headers=headers_login, data=payload
-            )
-
-            if response.status in {401, 403}:
-                _LOGGER.error("%s returned %s", response.url, response.status)
-                raise ApiAuthError("Authentication failed with eSolar API")
-            if response.status != 200:
-                _LOGGER.error("%s returned %s", response.url, response.status)
-                raise ApiError("Authentication failed with eSolar API")
-
+            self._verifyLogin()
             # Get API Plant info from Esolar Portal
             url2 = f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
             headers = {
@@ -449,3 +412,42 @@ class EsolarApiClient:
                 "Timeout error occurred while polling eSolar using url: %s"
             ) from err
         return data
+
+    async def _verifyLogin(self) -> None:
+        """Verify login to eSolar site."""
+        url = self.provider.getLoginUrl()
+        payload = {
+            "lang": "en",
+            "username": self.username,
+            "password": self.password,
+            "rememberMe": "true",
+        }
+        headers_login = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Cache-Control": "max-age=0",
+            "Connection": "keep-alive",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": "org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en; op:_lang=en",
+            "DNT": "1",
+            "Host": self.provider.host,
+            "Origin": self.provider.host,
+            "Referer": self.provider.getLoginUrl(),
+            "sec-ch-ua": '" Not;A Brand";v="99", "Google Chrome";v="91", "Chromium";v="91"',
+            "sec-ch-ua-mobile": "?0",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+        }
+        response = await self._session.post(url, headers=headers_login, data=payload)
+
+        if response.status in {401, 403}:
+            _LOGGER.error("%s returned %s", response.url, response.status)
+            raise ApiAuthError("Authentication failed with eSolar API")
+        if response.status != 200:
+            _LOGGER.error("%s returned %s", response.url, response.status)
+            raise ApiError("Authentication failed with eSolar API")

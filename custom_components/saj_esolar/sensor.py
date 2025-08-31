@@ -3,12 +3,10 @@
 This Sensor will read the private api of the eSolar portal at https://inversores-style.greenheiss.com
 """
 
-import calendar
-from datetime import UTC, date, datetime, timedelta
+from datetime import timedelta
 import logging
 from typing import Final
 
-import aiohttp
 import voluptuous as vol
 
 from homeassistant.components.sensor import (
@@ -23,25 +21,16 @@ from homeassistant.const import (
     CONF_USERNAME,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.util import Throttle
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-
+from .api import EsolarApiClient, EsolarProvider, SAJeSolarMeterData
 from .const import SENSOR_LIST, SENSOR_TYPES
 from .coordinator import EsolarDataUpdateCoordinator
-from .api import SAJeSolarMeterData, EsolarApiClient, EsolarProvider
 
 CONF_PLANT_ID: Final = "plant_id"
 
-
-BASE_URL = "https://inversores-style.greenheiss.com/cloud/login"
 _LOGGER = logging.getLogger(__name__)
 
 DEVICE_TYPES = {
@@ -52,8 +41,6 @@ DEVICE_TYPES = {
     1: "Meter",  # TODO: Pending to confirm
     2: "Battery",
 }
-
-MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=5)
 
 SENSOR_PREFIX = "esolar "  # do not change.
 ATTR_MEASUREMENT = "measurement"
@@ -124,9 +111,9 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: EsolarDataUpdateCoordinator,
         description: SensorEntityDescription,
-        data,
-        sensors,
-        plant_id,
+        data: SAJeSolarMeterData,
+        sensors: str,
+        plant_id: int,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
