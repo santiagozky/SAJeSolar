@@ -15,6 +15,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.exceptions import ConfigEntryAuthFailed
+
 
 from .const import DOMAIN, H1_SENSORS, SAJ_SENSORS, SENSOR_TYPES
 from .coordinator import EsolarDataUpdateCoordinator
