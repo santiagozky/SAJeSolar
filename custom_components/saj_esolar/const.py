@@ -59,9 +59,6 @@ BASIC_SENSORS = [
     "buyRate",
     "sellRate",
     "selfUseRate",
-    "totalBuyElec",  # Energy -> Grid consumption
-    "totalConsumpElec",
-    "totalSellElec",  # Energy -> Return to grid
     "selfConsumedRate1",
     "selfConsumedRate2",
     "selfConsumedEnergy1",
@@ -84,6 +81,9 @@ SAJ_SENSORS = [
 
 H1_SENSORS = [
     *BASIC_SENSORS,
+    "totalBuyElec",  # Energy -> Grid consumption
+    "totalConsumpElec",
+    "totalSellElec",  # Energy -> Return to grid
     "chargeElec",  # Energy -> Home Battery Storage -> Energy going in to the battery (kWh)
     "dischargeElec",  # Energy -> Home Battery Storage -> Energy coming out of the battery (kWh)
     "isStorageAlarm",
@@ -153,6 +153,7 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         key="selfUseRate",
         name="selfUseRate",
         icon="mdi:solar-panel",
+        native_unit_of_measurement=PERCENTAGE,
     ),
     SensorEntityDescription(
         key="totalBuyElec",
@@ -181,15 +182,11 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         key="todayGridIncome",
         name="todayGridIncome",
         icon="mdi:currency-eur",
-        native_unit_of_measurement="€",
-        suggested_display_precision=2,  # optional, to format with 2 decimals
     ),
     SensorEntityDescription(
         key="income",
         name="income",
         icon="mdi:currency-eur",
-        native_unit_of_measurement="€",
-        suggested_display_precision=2,  # optional, to format with 2 decimals
     ),
     SensorEntityDescription(
         key="lastUploadTime",
@@ -285,21 +282,25 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         key="buyRate",
         name="buyRate",
         icon="mdi:solar-panel",
+        native_unit_of_measurement=PERCENTAGE,
     ),
     SensorEntityDescription(
         key="sellRate",
         name="sellRate",
         icon="mdi:solar-panel",
+        native_unit_of_measurement=PERCENTAGE,
     ),
     SensorEntityDescription(
         key="selfConsumedRate1",
         name="selfConsumedRate1",
         icon="mdi:solar-panel",
+        native_unit_of_measurement=PERCENTAGE,
     ),
     SensorEntityDescription(
         key="selfConsumedRate2",
         name="selfConsumedRate2",
         icon="mdi:solar-panel",
+        native_unit_of_measurement=PERCENTAGE,
     ),
     SensorEntityDescription(
         key="selfConsumedEnergy1",

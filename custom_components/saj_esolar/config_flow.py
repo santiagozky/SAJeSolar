@@ -1,6 +1,7 @@
 from homeassistant import config_entries
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
+import logging
 
 
 from .const import (
@@ -13,11 +14,22 @@ from .const import (
     CONF_PLANT_ID,
 )
 
+from .api import (
+    EsolarApiClient,
+    EsolarProvider,
+    SAJeSolarMeterData,
+    ApiAuthError,
+    ApiError,
+)
+
+
 # Default values from your YAML
 DEFAULT_PROVIDER_DOMAIN = "inversores-style.greenheiss.com"
 DEFAULT_PROVIDER_PATH = "cloud"
 DEFAULT_PROVIDER_SSL = False
 SENSOR_CHOICES = ["h1", "saj_sec"]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -30,12 +42,39 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Optionally validate credentials here with the API
-            # For now, assume valid
-            return self.async_create_entry(
-                title=user_input[CONF_USERNAME],
-                data=user_input,
-            )
+            try:
+                provider = EsolarProvider(
+                    user_input["provider_domain"],
+                    user_input["provider_path"],
+                    "https",
+                    user_input["provider_ssl"],
+                )
+                config = SAJeSolarMeterData(
+                    user_input[CONF_USERNAME],
+                    user_input[CONF_PASSWORD],
+                    [],
+                    0,
+                    provider,
+                )
+                api = EsolarApiClient(self.hass, config)
+                await api.verifyLogin()
+            except ApiAuthError:
+                _LOGGER.error("Authentication error")
+                errors["base"] = "invalid_auth"
+            except ApiError:
+                _LOGGER.error("API error")
+                errors["base"] = "api error"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown problem"
+
+            if len(errors) == 0:
+                # all good
+                _LOGGER.error("Errors is empty, so all good %s", errors)
+                return self.async_create_entry(
+                    title=user_input[CONF_USERNAME],
+                    data=user_input,
+                )
 
         # Define the form schema
         schema = vol.Schema(

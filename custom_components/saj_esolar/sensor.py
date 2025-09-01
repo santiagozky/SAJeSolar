@@ -37,6 +37,10 @@ ATTR_MEASUREMENT = "measurement"
 ATTR_SECTION = "section"
 
 
+def _toPercentage(value: str) -> str:
+    return float(value.strip("%"))
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: Callable
 ):
@@ -102,9 +106,9 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if "devOnlineNum" in energy["plantDetail"]:
                     if energy["plantDetail"]["devOnlineNum"] is not None:
                         self._state = (
-                            "Yes"
+                            True
                             if int(energy["plantDetail"]["devOnlineNum"])
-                            else "No"
+                            else False
                         )
             if self._type == "nowPower":
                 if "nowPower" in energy["plantDetail"]:
@@ -114,9 +118,9 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if "runningState" in energy["plantDetail"]:
                     if energy["plantDetail"]["runningState"] is not None:
                         self._state = (
-                            "Yes"
+                            True
                             if int(energy["plantDetail"]["runningState"])
-                            else "No"
+                            else False
                         )
             if self._type == "todayElectricity":
                 if "todayElectricity" in energy["plantDetail"]:
@@ -144,8 +148,9 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                         self._state = float(energy["plantDetail"]["income"])
             if self._type == "selfUseRate":
                 if "selfUseRate" in energy["plantDetail"]:
-                    if energy["plantDetail"]["selfUseRate"] is not None:
-                        self._state = energy["plantDetail"]["selfUseRate"]
+                    selfUseRate = energy["plantDetail"]["selfUseRate"]
+                    if selfUseRate is not None:
+                        self._state = _toPercentage((selfUseRate))
             if self._type == "totalBuyElec":
                 if "totalBuyElec" in energy["plantDetail"]:
                     if energy["plantDetail"]["totalBuyElec"] is not None:
@@ -170,7 +175,6 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if "totalReduceCo2" in energy["plantDetail"]:
                     if energy["plantDetail"]["totalReduceCo2"] is not None:
                         self._state = energy["plantDetail"]["totalReduceCo2"]
-
             if self._type == "currency":
                 if "currency" in energy["plantList"][self.plant_id]:
                     if energy["plantList"][self.plant_id]["currency"] is not None:
@@ -183,14 +187,13 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if "plantname" in energy["plantList"][self.plant_id]:
                     if energy["plantList"][self.plant_id]["plantname"] is not None:
                         self._state = energy["plantList"][self.plant_id]["plantname"]
-            if self._type == "currency":
-                if "currency" in energy["plantList"][self.plant_id]:
-                    if energy["plantList"][self.plant_id]["currency"] is not None:
-                        self._state = energy["plantList"][self.plant_id]["currency"]
             if self._type == "isOnline":
                 if "isOnline" in energy["plantList"][self.plant_id]:
                     if energy["plantList"][self.plant_id]["isOnline"] is not None:
-                        self._state = energy["plantList"][self.plant_id]["isOnline"]
+                        self._state = (
+                            energy["plantList"][self.plant_id]["isOnline"].upper()
+                            == "Y"  # boolean from Y/N
+                        )
             if self._type == "address":
                 if "address" in energy["plantList"][self.plant_id]:
                     if energy["plantList"][self.plant_id]["address"] is not None:
@@ -226,7 +229,7 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if self._type == "buyRate":
                     if "buyRate" in energy["viewBean"]:
                         if energy["viewBean"]["buyRate"] is not None:
-                            self._state = energy["viewBean"]["buyRate"]
+                            self._state = _toPercentage(energy["viewBean"]["buyRate"])
                 if self._type == "pvElec":
                     if "pvElec" in energy["viewBean"]:
                         if energy["viewBean"]["pvElec"] is not None:
@@ -246,11 +249,15 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if self._type == "selfConsumedRate1":
                     if "selfConsumedRate1" in energy["viewBean"]:
                         if energy["viewBean"]["selfConsumedRate1"] is not None:
-                            self._state = energy["viewBean"]["selfConsumedRate1"]
+                            self._state = _toPercentage(
+                                energy["viewBean"]["selfConsumedRate1"]
+                            )
                 if self._type == "selfConsumedRate2":
                     if "selfConsumedRate2" in energy["viewBean"]:
                         if energy["viewBean"]["selfConsumedRate2"] is not None:
-                            self._state = energy["viewBean"]["selfConsumedRate2"]
+                            self._state = _toPercentage(
+                                energy["viewBean"]["selfConsumedRate2"]
+                            )
                 if self._type == "sellElec":
                     if "sellElec" in energy["viewBean"]:
                         if energy["viewBean"]["sellElec"] is not None:
@@ -258,7 +265,7 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if self._type == "sellRate":
                     if "sellRate" in energy["viewBean"]:
                         if energy["viewBean"]["sellRate"] is not None:
-                            self._state = energy["viewBean"]["sellRate"]
+                            self._state = _toPercentage(energy["viewBean"]["sellRate"])
                 if self._type == "useElec":
                     if "useElec" in energy["viewBean"]:
                         if energy["viewBean"]["useElec"] is not None:
@@ -325,9 +332,9 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                     if "isOnline" in energy["storeDevicePower"]:
                         if energy["storeDevicePower"]["isOnline"] is not None:
                             self._state = (
-                                "Yes"
+                                True
                                 if int(energy["storeDevicePower"]["isOnline"])
-                                else "No"
+                                else False
                             )
                 if self._type == "outPower":
                     if "outPower" in energy["storeDevicePower"]:
@@ -458,18 +465,18 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                             energy["getPlantMeterChartData"]["viewBean"]["buyRate"]
                             is not None
                         ):
-                            self._state = energy["getPlantMeterChartData"]["viewBean"][
-                                "buyRate"
-                            ]
+                            self._state = _toPercentage(
+                                energy["getPlantMeterChartData"]["viewBean"]["buyRate"]
+                            )
                 if self._type == "sellRate":
                     if "sellRate" in energy["getPlantMeterChartData"]["viewBean"]:
                         if (
                             energy["getPlantMeterChartData"]["viewBean"]["sellRate"]
                             is not None
                         ):
-                            self._state = energy["getPlantMeterChartData"]["viewBean"][
-                                "sellRate"
-                            ]
+                            self._state = _toPercentage(
+                                energy["getPlantMeterChartData"]["viewBean"]["sellRate"]
+                            )
                 if self._type == "selfConsumedRate1":
                     if (
                         "selfConsumedRate1"
@@ -481,9 +488,11 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                             ]
                             is not None
                         ):
-                            self._state = energy["getPlantMeterChartData"]["viewBean"][
-                                "selfConsumedRate1"
-                            ]
+                            self._state = _toPercentage(
+                                energy["getPlantMeterChartData"]["viewBean"][
+                                    "selfConsumedRate1"
+                                ]
+                            )
                 if self._type == "selfConsumedRate2":
                     if (
                         "selfConsumedRate2"
@@ -495,9 +504,11 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                             ]
                             is not None
                         ):
-                            self._state = energy["getPlantMeterChartData"]["viewBean"][
-                                "selfConsumedRate2"
-                            ]
+                            self._state = _toPercentage(
+                                energy["getPlantMeterChartData"]["viewBean"][
+                                    "selfConsumedRate2"
+                                ]
+                            )
                 if self._type == "plantTreeNum":
                     if "plantTreeNum" in energy["getPlantMeterChartData"]["viewBean"]:
                         if (
@@ -546,6 +557,17 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                             )
 
                 # getPlantMeterDetailInfo
+
+                if self._type == "selfUseRate":
+                    if (
+                        "selfUseRate"
+                        in energy["getPlantMeterDetailInfo"]["plantDetail"]
+                    ):
+                        selfUse = energy["getPlantMeterDetailInfo"]["plantDetail"][
+                            "selfUseRate"
+                        ]
+                        if selfUse is not None:
+                            self._state = _toPercentage(selfUse)
                 if self._type == "totalPvEnergy":
                     if (
                         "totalPvEnergy"

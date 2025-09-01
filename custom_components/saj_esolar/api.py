@@ -127,7 +127,7 @@ class EsolarApiClient:
         try:
             today = date.today()
             clientDate = today.strftime("%Y-%m-%d")
-            await self._verifyLogin()
+            await self.verifyLogin()
             # Get API Plant info from Esolar Portal
             url2 = f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
             headers = {
@@ -414,10 +414,10 @@ class EsolarApiClient:
             raise ApiError("Timeout error occurred while polling eSolar ") from err
         return data
 
-    async def _verifyLogin(self) -> None:
+    async def verifyLogin(self) -> None:
         """Verify login to eSolar site."""
         url = self.provider.getLoginUrl()
-        _LOGGER.error("Trying to login on: %s", url)
+        _LOGGER.debug("Trying to login on: %s", url)
 
         payload = {
             "lang": "en",
@@ -446,12 +446,17 @@ class EsolarApiClient:
             "Upgrade-Insecure-Requests": "1",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
         }
-        response = await self._session.post(url, headers=headers_login, data=payload)
+        # do not allow redirects, because a successful login returns a 302 to the dashboard
+        response = await self._session.post(
+            url, headers=headers_login, data=payload, allow_redirects=False
+        )
         _LOGGER.debug("login response: %s, %s", response.status, response.text)
 
-        if response.status in {401, 403}:
+        # the login url is a html page so a bad credential returns a 200 with the same page
+        # a good login returns a 302/303 to the dashboard
+        if response.status in {200, 401, 403}:
             _LOGGER.error("%s returned %s", response.url, response.status)
             raise ApiAuthError("Authentication failed with eSolar API")
-        if response.status != 200:
-            _LOGGER.error("%s returned %s", response.url, response.status)
-            raise ApiError("Authentication failed with eSolar API")
+        if response.status in {302, 303} and "Location" in response.headers:
+            return
+        raise ApiAuthError("Authentication failed for unknown reasons")
