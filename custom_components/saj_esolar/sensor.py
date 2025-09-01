@@ -3,30 +3,20 @@
 This Sensor will read the private api of the eSolar portal at https://inversores-style.greenheiss.com
 """
 
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import date, datetime, timedelta
 import logging
-from typing import Final
+from typing import Any, Final
 
-import voluptuous as vol
-
-from homeassistant.components.sensor import (
-    PLATFORM_SCHEMA as SENSOR_PLATFORM_SCHEMA,
-    SensorEntity,
-    SensorEntityDescription,
-)
-from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_RESOURCES,
-    CONF_SENSORS,
-    CONF_USERNAME,
-)
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_SENSORS
 from homeassistant.core import HomeAssistant, callback
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import EsolarApiClient, EsolarProvider, SAJeSolarMeterData
-from .const import SENSOR_LIST, SENSOR_TYPES
+from .const import DOMAIN, H1_SENSORS, SAJ_SENSORS, SENSOR_TYPES
 from .coordinator import EsolarDataUpdateCoordinator
 
 CONF_PLANT_ID: Final = "plant_id"
@@ -46,60 +36,25 @@ SENSOR_PREFIX = "esolar "  # do not change.
 ATTR_MEASUREMENT = "measurement"
 ATTR_SECTION = "section"
 
-PLATFORM_SCHEMA = SENSOR_PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(CONF_RESOURCES, default=list(SENSOR_LIST)): vol.All(  # type: ignore
-            cv.ensure_list, [vol.In(SENSOR_LIST)]
-        ),
-        vol.Optional(CONF_SENSORS, default="None"): cv.string,  # type: ignore
-        vol.Optional(CONF_PLANT_ID, default=0): cv.positive_int,  # type: ignore
-        vol.Optional(
-            "provider_domain", default="inversores-style.greenheiss.com"
-        ): cv.string,
-        vol.Optional("provider_path", default="cloud"): cv.string,
-        vol.Optional("provider_protocol", default="https"): cv.string,
-        vol.Optional("provider_ssl", default=True): cv.boolean,
-    }
-)
 
-
-async def async_setup_platform(
-    hass: HomeAssistant,
-    config: dict,
-    async_add_entities: AddEntitiesCallback,
-    discovery_info: dict | None = None,
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: Callable
 ):
-    """Setup the eSolar sensors."""
-
-    provider = EsolarProvider(
-        config.get("provider_domain"),
-        config.get("provider_path"),
-        config.get("provider_protocol"),
-        config.get("provider_ssl"),
-    )
-    data = SAJeSolarMeterData(
-        config.get(CONF_USERNAME),
-        config.get(CONF_PASSWORD),
-        config.get(CONF_SENSORS),
-        config.get(CONF_PLANT_ID),
-        provider,
-    )
-
-    api = EsolarApiClient(hass, data)
-    coordinator = EsolarDataUpdateCoordinator(hass, api)
-    await coordinator.async_refresh()
-    # async_config_entry_first_refresh only works with config flog
-    # await coordinator.async_config_entry_first_refresh()
-
+    """Set up the eSolar sensors from a config entry."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    config = entry.data
     entities = []
+    if config[CONF_SENSORS] == "h1":
+        sensorlist = H1_SENSORS
+    else:
+        sensorlist = SAJ_SENSORS
+
     for description in SENSOR_TYPES:
-        if description.key in config[CONF_RESOURCES]:
+        _LOGGER.debug("Setting up esolar sensor: %s", description.key)
+        if description.key in sensorlist:
             sensor = SAJeSolarMeterSensor(
                 coordinator,
                 description,
-                data,
                 config.get(CONF_SENSORS),
                 config.get(CONF_PLANT_ID),
             )
@@ -115,14 +70,13 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: EsolarDataUpdateCoordinator,
         description: SensorEntityDescription,
-        data: SAJeSolarMeterData,
         sensors: str,
         plant_id: int,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
+        _LOGGER.debug("Initializing esolar sensor: %s", description.key)
         self.entity_description = description
-        self._data = data
         self._state = None
         self.sensors = sensors
         self.plant_id = plant_id
@@ -139,8 +93,8 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
         self._discovery = False
         self._dev_id = {}
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
+    @property
+    def native_value(self) -> StateType | date | datetime:
         """Handle updated data from the coordinator."""
         energy = self.coordinator.data
         if energy:
@@ -651,12 +605,4 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
 
         # -Debug- adding sensor
         _LOGGER.debug("Device: %s , State %s", self._type, self._state)
-        self.async_write_ha_state()
-
-    @property
-    def state(self):
-        """Return the state of the sensor. (total/current power consumption/production or total gas used)."""
         return self._state
-
-    async def async_update(self):
-        await self.coordinator.async_request_refresh()

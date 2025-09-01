@@ -33,7 +33,7 @@ class EsolarProvider:
     """Handless the information of the url of a particular esolar provider (e.g. saj, greenheiss)."""
 
     def __init__(
-        self, host: str, path: str, protocol: str, verify_ssl: bool = True
+        self, host: str, path: str, protocol: str = "https", verify_ssl: bool = True
     ) -> None:
         """Initialize the sensor with the specified host, path, and protocol.
 
@@ -45,7 +45,7 @@ class EsolarProvider:
         """
         self.host = host
         self.path = path
-        self.protocol = protocol
+        self.protocol = "https"
         self.verify_ssl = verify_ssl
 
     def getBaseDomain(self):
@@ -122,6 +122,7 @@ class EsolarApiClient:
 
     async def fetch_data(self):
         """Fetch and aggregate data from the eSolar site."""
+        _LOGGER.debug("fetch_data called")
         data = {}
         try:
             today = date.today()
@@ -416,7 +417,7 @@ class EsolarApiClient:
     async def _verifyLogin(self) -> None:
         """Verify login to eSolar site."""
         url = self.provider.getLoginUrl()
-        _LOGGER.debug("trying to login on: %s", url)
+        _LOGGER.error("Trying to login on: %s", url)
 
         payload = {
             "lang": "en",

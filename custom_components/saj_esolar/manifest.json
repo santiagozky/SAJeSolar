@@ -8,5 +8,6 @@
   "documentation": "https://github.com/santiagozky/greenheiss_esolar/",
   "codeowners": ["@santiagozky"],
   "iot_class": "cloud_polling",
-  "integration_type": "hub"
+  "integration_type": "hub",
+  "config_flow": true
 }

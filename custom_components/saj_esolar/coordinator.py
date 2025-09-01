@@ -33,6 +33,7 @@ class EsolarDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Fetch data from API endpoint."""
+        _LOGGER.debug("Coordinator async_update_data called")
         try:
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.

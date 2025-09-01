@@ -8,6 +8,18 @@ from homeassistant.components.sensor import (
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 
 DOMAIN = "esolar_greenheiss"
+
+
+CONF_USERNAME = "username"
+CONF_PASSWORD = "password"
+CONF_SENSORS = "sensors"
+CONF_PLANT_ID = "plant_id"
+CONF_PROVIDER_DOMAIN = "provider_domain"
+CONF_PROVIDER_PATH = "provider_path"
+CONF_PROVIDER_PROTOCOL = "provider_protocol"
+CONF_PROVIDER_SSL = "provider_ssl"
+
+
 DEVICE_TYPES = {
     "Inverter": 0,
     "Meter": 1,  # TODO: Pending to confirm
@@ -17,7 +29,8 @@ DEVICE_TYPES = {
     2: "Battery",
 }
 
-SENSOR_LIST = {
+
+BASIC_SENSORS = [
     "nowPower",
     "runningState",
     "devOnlineNum",
@@ -30,7 +43,6 @@ SENSOR_LIST = {
     "lastUploadTime",
     "totalPlantTreeNum",
     "totalReduceCo2",
-    "isAlarm",
     "plantuid",
     "plantname",
     "currency",
@@ -47,29 +59,35 @@ SENSOR_LIST = {
     "buyRate",
     "sellRate",
     "selfUseRate",
-    "totalBuyElec",
+    "totalBuyElec",  # Energy -> Grid consumption
     "totalConsumpElec",
-    "totalSellElec",
+    "totalSellElec",  # Energy -> Return to grid
     "selfConsumedRate1",
     "selfConsumedRate2",
     "selfConsumedEnergy1",
     "selfConsumedEnergy2",
     "plantTreeNum",
     "reduceCo2",
-    # new saj entities
-    "gridLoadPower",
-    "solarLoadPower",
-    "homeLoadPower",
-    "exportPower",
+]
+
+SAJ_SENSORS = [
+    *BASIC_SENSORS,
     "totalPvEnergy",
-    "totalLoadEnergy",
+    "totalLoadEnergy",  # Energy -> Grid consumption
     "totalBuyEnergy",
-    "totalSellEnergy",
-    # h1
-    "chargeElec",
-    "dischargeElec",
-    "batCapcity",
+    "totalSellEnergy",  # Energy -> Return to grid
+    "gridLoadPower",  # Power imported from the grid
+    "solarLoadPower",  # Solar power being currently self-consumed
+    "homeLoadPower",  # Total power being consumed by the plant (the home)
+    "exportPower",  # Power being exported to the grid
+]
+
+H1_SENSORS = [
+    *BASIC_SENSORS,
+    "chargeElec",  # Energy -> Home Battery Storage -> Energy going in to the battery (kWh)
+    "dischargeElec",  # Energy -> Home Battery Storage -> Energy coming out of the battery (kWh)
     "isStorageAlarm",
+    "batCapcity",
     "batCurr",
     "batEnergyPercent",
     "batteryDirection",
@@ -82,14 +100,15 @@ SENSOR_LIST = {
     "pvDirection",
     "pvPower",
     "solarPower",
-}
+]
+
 SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
     SensorEntityDescription(
         key="nowPower",
         name="nowPower",
         icon="mdi:solar-power",
         native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.ENERGY,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="runningState",
@@ -162,11 +181,15 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         key="todayGridIncome",
         name="todayGridIncome",
         icon="mdi:currency-eur",
+        native_unit_of_measurement="€",
+        suggested_display_precision=2,  # optional, to format with 2 decimals
     ),
     SensorEntityDescription(
         key="income",
         name="income",
         icon="mdi:currency-eur",
+        native_unit_of_measurement="€",
+        suggested_display_precision=2,  # optional, to format with 2 decimals
     ),
     SensorEntityDescription(
         key="lastUploadTime",
@@ -182,11 +205,6 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         key="totalReduceCo2",
         name="totalReduceCo2",
         icon="mdi:molecule-co2",
-    ),
-    SensorEntityDescription(
-        key="isAlarm",
-        name="isAlarm",
-        icon="mdi:alarm",
     ),
     SensorEntityDescription(
         key="plantuid",
@@ -223,14 +241,14 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         name="peakPower",
         icon="mdi:solar-panel",
         native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.ENERGY,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="systemPower",
         name="systemPower",
         icon="mdi:solar-panel",
         native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.ENERGY,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="pvElec",
@@ -312,25 +330,28 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         name="gridLoadPower",
         icon="mdi:transmission-tower-import",
         native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="solarLoadPower",
         name="solarLoadPower",
         icon="mdi:solar-power",
         native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.ENERGY,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="homeLoadPower",
         name="homeLoadPower",
         icon="mdi:home-lightning-bolt-outline",
         native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="exportPower",
         name="exportPower",
         icon="mdi:transmission-tower-export",
         native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="totalPvEnergy",
@@ -398,12 +419,14 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         name="batteryPower",
         icon="mdi:solar-panel-large",
         native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="gridPower",
         name="gridPower",
         icon="mdi:solar-panel-large",
         native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="gridDirection", name="gridDirection", icon="mdi:solar-panel-large"
@@ -418,6 +441,7 @@ SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
         name="outPower",
         icon="mdi:solar-panel-large",
         native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
     ),
     SensorEntityDescription(
         key="outPutDirection",
