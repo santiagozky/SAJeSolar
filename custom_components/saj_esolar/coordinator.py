@@ -8,11 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import (
-    ApiAuthError,
-    ApiError,
-    EsolarApiClient,
-)
+from .api import ApiAuthError, ApiError, EsolarApiClient
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -4,19 +4,16 @@ This Sensor will read the private api of the eSolar portal at https://inversores
 """
 
 from collections.abc import Callable
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import logging
 from typing import Any, Final
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SENSORS
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.exceptions import ConfigEntryAuthFailed
-
 
 from .const import DOMAIN, H1_SENSORS, SAJ_SENSORS, SENSOR_TYPES
 from .coordinator import EsolarDataUpdateCoordinator

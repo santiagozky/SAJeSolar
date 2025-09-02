@@ -1,3 +1,5 @@
+"""Constants for the eSolar Greenheiss integration."""
+
 from typing import Final
 
 from homeassistant.components.sensor import (
@@ -9,7 +11,6 @@ from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 
 DOMAIN = "esolar_greenheiss"
 
-
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SENSORS = "sensors"
@@ -18,7 +19,7 @@ CONF_PROVIDER_DOMAIN = "provider_domain"
 CONF_PROVIDER_PATH = "provider_path"
 CONF_PROVIDER_PROTOCOL = "provider_protocol"
 CONF_PROVIDER_SSL = "provider_ssl"
-
+CONF_USE_SSL = "use_ssl"
 
 DEVICE_TYPES = {
     "Inverter": 0,
@@ -51,7 +52,6 @@ BASIC_SENSORS = [
     "status",
     "peakPower",
     "systemPower",
-    # sec & h1
     "pvElec",
     "useElec",
     "buyElec",

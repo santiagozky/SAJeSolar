@@ -2,22 +2,11 @@
 
 import logging
 
-import voluptuous as vol
-
-from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.typing import ConfigType
 
 from .api import EsolarApiClient, EsolarProvider, SAJeSolarMeterData
-from .const import (
-    CONF_PASSWORD,
-    CONF_PLANT_ID,
-    CONF_SENSORS,
-    CONF_USERNAME,
-    DOMAIN,
-)
+from .const import CONF_PASSWORD, CONF_PLANT_ID, CONF_SENSORS, CONF_USERNAME, DOMAIN
 from .coordinator import EsolarDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,3 +48,17 @@ async def async_setup_entry(
     # Forward setup to platforms
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unload_ok
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload a config entry."""
+    await async_unload_entry(hass, entry)
+    await async_setup_entry(hass, entry)

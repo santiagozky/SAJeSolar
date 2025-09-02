@@ -3,7 +3,8 @@
 import calendar
 from datetime import UTC, date, datetime, timedelta
 import logging
-
+from ssl import SSLCertVerificationError
+from . import messages
 import aiohttp
 
 from homeassistant.core import HomeAssistant
@@ -447,16 +448,25 @@ class EsolarApiClient:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
         }
         # do not allow redirects, because a successful login returns a 302 to the dashboard
-        response = await self._session.post(
-            url, headers=headers_login, data=payload, allow_redirects=False
-        )
-        _LOGGER.debug("login response: %s, %s", response.status, response.text)
+        try:
+            response = await self._session.post(
+                url, headers=headers_login, data=payload, allow_redirects=False
+            )
+            _LOGGER.debug("login response: %s, %s", response.status, response.text)
+        except SSLCertVerificationError as err:
+            _LOGGER.error("SSL Certificate error: %s", err)
+            raise ApiError(messages.SSL_CERTIFICATE_ERROR) from err
 
         # the login url is a html page so a bad credential returns a 200 with the same page
         # a good login returns a 302/303 to the dashboard
+        _LOGGER.debug("%s returned %s", response.url, response.status)
         if response.status in {200, 401, 403}:
-            _LOGGER.error("%s returned %s", response.url, response.status)
-            raise ApiAuthError("Authentication failed with eSolar API")
+            raise ApiAuthError(messages.AUTHENTICATION_FAILED)
         if response.status in {302, 303} and "Location" in response.headers:
+            _LOGGER.debug(
+                "apparently successfull redirect %s, redirecting to %s",
+                response.status,
+                response.headers["Location"],
+            )
             return
-        raise ApiAuthError("Authentication failed for unknown reasons")
+        raise ApiAuthError(messages.UNKNOWN_AUTH_ERROR)
