@@ -2,6 +2,8 @@
 
 This Home-Assistant (https://home-assistant.io) integration is a modification of the original from https://github.com/djansen1987/SAJeSolar. The reason for a fork is that SAJ has treated differently their official clients and clients of rebranded hardware (like Greenheiss). People with SAJ Branded hardware have been migrated to the "Elekeeper" platform leaving people with rebranded hardware in the legacy platform.
 
+**NOTE:** This integration was heavily refactored and has been tested only by me. I dont have access to all supported hardware and little experience on this, so I would not consider this  stable yet.
+
 If your monitoring portal is one of the following, this integration most likely will work for you:
  - Peimar: https://peimar-portal.saj-electric.com
  - GreenHeiss: https://inversores-style.greenheiss.com (which is a CNAME for https://greenheiss-portal.saj-electric.com)
@@ -48,9 +50,13 @@ If you want to migrate from the original integration do the following:
  - Remove all configuration for the integration in your yaml files. Do not erase any entitiy
  - Install this integration into your HASS instance
  - Restart your instance
- - Setup the configuration. This integration's entities are named **exactly** as the original so as long as you removed the original one before setting up this one, they should be 'adopted'
+ - Setup the configuration. This integration's entities are named the same as the original so as long as you removed the original one before setting up this one, they should be 'adopted'.
 
-**NOTE**: The migration is not exactly 1:1. I did some cleanup like replacing some entities that returned 'Y' or 'YES' into proper booleans. I also removed a couple of deprecated entities.
+ #### Notes on migrating
+
+  - The migration is not exactly 1:1. I did some cleanup like replacing some entities that returned 'Y' or 'YES' into proper booleans. I also removed a couple of deprecated entities.
+  - It is not longer possible to choose which entities you want. You'll get all entities available for the chosen hardware. I might allow to configure this in the future but for now it proved to difficult for me.
+  - I removed a couple of entities considered deprecated because they were originally wrong.
 
 
 ### **Supported Entities**

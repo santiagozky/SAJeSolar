@@ -17,5 +17,14 @@ The **ESolar Greenheiss** integration allows you to monitor your solar energy pr
 
 1. Go to **Settings > Devices & Services** in Home Assistant.
 2. Click **Add Integration** and search for **ESolar Greenheiss**.
-3. Enter your ESolar username and password.
-4. Select your plant ID and options if prompted.
+3. Fill out the following fields:
+   - **Username & password**: Pretty self-explanatory
+   - **Provider Domain**: The domain of your monitoring site. The default greenheiss one should work, but you can use your brand's domain if needed.
+     
+     If you change that, make sure to review the advanced section!
+   - **Monitoring Hardware**: This integration currently should support the SEC Monitoring Module and the H1 Inverter. Choose the one you have. (AFAIK you cannot use both)
+   - **Provider Path**: The path part of the URL used by your provider's site. Check your monitoring site  to verify it. 
+     - Greenheiss uses _cloud_: https://greenheiss-portal.saj-electric.com/cloud
+     - Peimar uses _portal_: https://peimar-portal.saj-electric.com/portal
+   - **Use SSL**: for using https (I see no reason to uncheck this, but maybe there is one)
+   - **Verify SSL**: Uncheck if your provider certificate is failing for HASS (Grenheiss.com certificate seems to be not trusted by HASS)
