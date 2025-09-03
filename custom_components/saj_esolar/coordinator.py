@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class EsolarDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching eSolar data from the API."""
+    """Class to manage fetching eSolar data from the API at regular intervals."""
 
     def __init__(self, hass: HomeAssistant, api_client: EsolarApiClient) -> None:
         """Initialize the esolar coordinator."""
@@ -36,8 +36,6 @@ class EsolarDataUpdateCoordinator(DataUpdateCoordinator):
             async with asyncio.timeout(10):
                 return await self.api_client.fetch_data()
         except ApiAuthError as err:
-            # Raising ConfigEntryAuthFailed will cancel future updates
-            # and start a config flow with SOURCE_REAUTH (async_step_reauth)
             raise ConfigEntryAuthFailed from err
         except ApiError as err:
             raise UpdateFailed("Error communicating with API") from err

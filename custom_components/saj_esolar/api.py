@@ -4,7 +4,7 @@ import calendar
 from datetime import UTC, date, datetime, timedelta
 import logging
 from ssl import SSLCertVerificationError
-from . import messages
+
 import aiohttp
 
 from homeassistant.core import HomeAssistant
@@ -13,6 +13,9 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from .const import DEVICE_TYPES
 
 _LOGGER = logging.getLogger(__name__)
+
+UNKNOWN_AUTH_ERROR = "Authentication failed for unknown reasons"
+AUTHENTICATION_FAILED = "Authentication failed, please check your credentials"
 
 
 def _add_months(sourcedate, months):
@@ -69,7 +72,7 @@ class EsolarProvider:
         return self.verify_ssl
 
 
-class SAJeSolarMeterData:
+class ESolarConfiguration:
     """Holds configuration for the integration."""
 
     def __init__(
@@ -104,7 +107,7 @@ class EsolarApiClient:
     def __init__(
         self,
         hass: HomeAssistant,
-        config: SAJeSolarMeterData,
+        config: ESolarConfiguration,
     ) -> None:
         """Initialize the API client.
 
@@ -128,6 +131,7 @@ class EsolarApiClient:
         try:
             today = date.today()
             clientDate = today.strftime("%Y-%m-%d")
+            # Make sure we have a valid session cookie
             await self.verifyLogin()
             # Get API Plant info from Esolar Portal
             url2 = f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
@@ -416,7 +420,10 @@ class EsolarApiClient:
         return data
 
     async def verifyLogin(self) -> None:
-        """Verify login to eSolar site."""
+        """Verify login to eSolar site.
+        The eSolar site uses a form based login that returns a redirect and sets a cookie on success.
+        The cookie is managed for us by the aiohttp session. So subsequent calls using the same session will be authenticated.
+        """
         url = self.provider.getLoginUrl()
         _LOGGER.debug("Trying to login on: %s", url)
 
@@ -455,7 +462,7 @@ class EsolarApiClient:
             _LOGGER.debug("login response: %s, %s", response.status, response.text)
         except SSLCertVerificationError as err:
             _LOGGER.error("SSL Certificate error: %s", err)
-            raise ApiError(messages.SSL_CERTIFICATE_ERROR) from err
+            raise ApiError("SSL Certificate error") from err
 
         # the login url is a html page so a bad credential returns a 200 with the same page
         # a good login returns a 302/303 to the dashboard

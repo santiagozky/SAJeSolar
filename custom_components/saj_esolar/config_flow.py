@@ -1,22 +1,21 @@
 """Config flow for eSolar Greenheiss integration."""
 
 import logging
-import random
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-import homeassistant.helpers.config_validation as cv
 from homeassistant.data_entry_flow import section
-from homeassistant.helpers.selector import selector
+import homeassistant.helpers.config_validation as cv
 
-from . import messages
 from .api import (
+    AUTHENTICATION_FAILED,
+    UNKNOWN_AUTH_ERROR,
     ApiAuthError,
     ApiError,
     EsolarApiClient,
+    ESolarConfiguration,
     EsolarProvider,
-    SAJeSolarMeterData,
 )
 from .const import (
     CONF_PASSWORD,
@@ -61,7 +60,7 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     "https",
                     config[CONF_PROVIDER_SSL],
                 )
-                meterData = SAJeSolarMeterData(
+                meterData = ESolarConfiguration(
                     config[CONF_USERNAME],
                     config[CONF_PASSWORD],
                     [],
@@ -78,11 +77,15 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = str(err)
             except Exception:
                 _LOGGER.exception("Unexpected exception")
-                errors["base"] = messages.UNKNOWN_AUTH_ERROR
+                errors["base"] = api.UNKNOWN_AUTH_ERROR
 
             if len(errors) == 0:
                 # all good
                 uuid = self._getId(user_input)
+                # TODO:the id is username@provider_domain.
+                # this might cause issues if we allow to reconfigure the username or
+                # allow multiples configurations or plants
+                # maybe using the planyid would be better?
                 await self.async_set_unique_id(uuid)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
@@ -135,7 +138,7 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     "https",
                     user_input.get("provider_ssl", DEFAULT_PROVIDER_SSL),
                 )
-                config = SAJeSolarMeterData(
+                config = ESolarConfiguration(
                     user_input[CONF_USERNAME],
                     user_input[CONF_PASSWORD],
                     [],
@@ -152,7 +155,7 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = str(err)
             except Exception:
                 _LOGGER.exception("Unexpected exception")
-                errors["base"] = messages.UNKNOWN_AUTH_ERROR
+                errors["base"] = api.UNKNOWN_AUTH_ERROR
 
             if not errors:
                 # Update the existing config entry
@@ -160,42 +163,23 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self.hass.config_entries.async_update_entry(entry, data=new_data)
                 return self.async_abort(reason="reauth_successful")
 
-        # Show the form pre-filled with current entry data
+        # only password. changing username would likely break energy dashboard
         schema = vol.Schema(
             {
-                vol.Required(CONF_USERNAME, default=entry.data.get(CONF_USERNAME)): str,
                 vol.Required(CONF_PASSWORD, default=entry.data.get(CONF_PASSWORD)): str,
-                vol.Optional(
-                    CONF_PROVIDER_DOMAIN,
-                    default=entry.data.get(
-                        CONF_PROVIDER_DOMAIN, DEFAULT_PROVIDER_DOMAIN
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_PROVIDER_PATH,
-                    default=entry.data.get(CONF_PROVIDER_PATH, DEFAULT_PROVIDER_PATH),
-                ): str,
-                vol.Optional(
-                    CONF_PROVIDER_SSL,
-                    default=entry.data.get(CONF_PROVIDER_SSL, DEFAULT_PROVIDER_SSL),
-                ): bool,
-                vol.Optional(
-                    "sensors", default=entry.data.get("sensors", "saj_sec")
-                ): vol.In(SENSOR_CHOICES),
-                vol.Optional(
-                    CONF_PLANT_ID, default=entry.data.get(CONF_PLANT_ID, 0)
-                ): cv.positive_int,
             }
         )
 
-        return self.async_show_form(step_id="reauth", data_schema=schema, errors=errors)
+        placeholders = {
+            "username": self.config_entry.data[CONF_USERNAME],
+            "provider_domain": self.config_entry.data.get(CONF_PROVIDER_DOMAIN),
+        }
 
-    async def async_step_import(self, import_data):
-        """Import configuration from YAML."""
-        uuid = self._getId(import_data)
-        return self.async_create_entry(
-            title=uuid,
-            data=import_data,
+        return self.async_show_form(
+            step_id="reauth",
+            data_schema=schema,
+            description_placeholders=placeholders,
+            errors=errors,
         )
 
     def _getId(self, dictionary) -> str:
