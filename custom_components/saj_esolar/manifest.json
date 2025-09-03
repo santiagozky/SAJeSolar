@@ -1,11 +1,16 @@
 {
-  "domain": "saj_esolar",
-  "name": "SAJ eSolar",
+  "domain": "esolar_greenheiss",
+  "name": "esolar greenheiss",
   "version": "1.5.7",
   "requirements": [],
   "dependencies": [],
-  "issue_tracker": "https://github.com/djansen1987/SAJeSolar/issues",
-  "documentation": "https://github.com/djansen1987/SAJeSolar/",
-  "codeowners": ["@djansen1987"],
-  "iot_class": "cloud_polling"
+  "issue_tracker": "https://github.com/santiagozky/greenheiss_esolar/issues",
+  "documentation": "https://github.com/santiagozky/greenheiss_esolar/",
+  "codeowners": ["@santiagozky"],
+  "iot_class": "cloud_polling",
+  "integration_type": "hub",
+  "config_flow": true,
+  "frontend": {
+    "icon": "mdi:solar-power"
+  }
 }
