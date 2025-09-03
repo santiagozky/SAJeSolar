@@ -28,7 +28,7 @@ from .const import (
     DOMAIN,
 )
 
-DEFAULT_PROVIDER_DOMAIN = "inversores-style.greenheiss.com"
+DEFAULT_PROVIDER_DOMAIN = "greenheiss-portal.saj-electric.com"
 DEFAULT_PROVIDER_PATH = "cloud"
 DEFAULT_PROVIDER_SSL = True
 SENSOR_CHOICES = ["h1", "saj_sec"]
