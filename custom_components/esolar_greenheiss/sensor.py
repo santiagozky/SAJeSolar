@@ -56,44 +56,6 @@ def _toPercentage(value: str) -> str:
     return float(value.strip("%"))
 
 
-# Migration from old saj_esolar
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(
-            CONF_RESOURCES, default=list([*SAJ_SENSORS, *H1_SENSORS])
-        ): vol.All(  # type: ignore
-            cv.ensure_list,
-            [vol.In([*SAJ_SENSORS, *H1_SENSORS])],  # type: ignore
-        ),
-        vol.Optional(CONF_SENSORS, default="None"): cv.string,  # type: ignore
-        vol.Optional(CONF_PLANT_ID, default=0): cv.positive_int,  # type: ignore
-        vol.Optional(CONF_PROVIDER_DOMAIN, default="fop.saj-electric.com"): cv.string,
-        vol.Optional(CONF_PROVIDER_PATH, default="saj"): cv.string,
-        vol.Optional(CONF_PROVIDER_PROTOCOL, default="https"): cv.string,
-        vol.Optional(CONF_PROVIDER_SSL, default=True): cv.boolean,
-    }
-)
-
-
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Import legacy YAML config into a config entry."""
-    _LOGGER.warning(
-        "YAML configuration for 'saj_esolar' is deprecated. "
-        "Please remove it from configuration.yaml after migration."
-    )
-
-    # Forward the YAML data into the new config flow
-    hass.async_create_task(
-        hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": "import"},
-            data=config,
-        )
-    )
-
-
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: Callable
 ):

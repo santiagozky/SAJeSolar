@@ -19,7 +19,7 @@ CONF_PROVIDER_DOMAIN = "provider_domain"
 CONF_PROVIDER_PATH = "provider_path"
 CONF_PROVIDER_PROTOCOL = "provider_protocol"
 CONF_PROVIDER_SSL = "provider_ssl"
-CONF_USE_SSL = "use_ssl"
+CONF_RESOURCES = "resources"
 
 DEVICE_TYPES = {
     "Inverter": 0,

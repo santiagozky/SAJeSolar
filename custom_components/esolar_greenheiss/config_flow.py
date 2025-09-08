@@ -23,9 +23,10 @@ from .const import (
     CONF_PROVIDER_DOMAIN,
     CONF_PROVIDER_PATH,
     CONF_PROVIDER_SSL,
-    CONF_USE_SSL,
+    CONF_PROVIDER_PROTOCOL,
     CONF_USERNAME,
     DOMAIN,
+    CONF_SENSORS,
 )
 
 DEFAULT_PROVIDER_DOMAIN = "greenheiss-portal.saj-electric.com"
@@ -111,7 +112,7 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                 CONF_PROVIDER_PATH, default=DEFAULT_PROVIDER_PATH
                             ): str,
                             vol.Optional(CONF_PLANT_ID, default=0): cv.positive_int,
-                            vol.Required(CONF_USE_SSL, default=True): bool,
+                            vol.Required(CONF_PROVIDER_PROTOCOL, default=True): bool,
                             vol.Required(CONF_PROVIDER_SSL, default=True): bool,
                         }
                     ),
@@ -180,6 +181,34 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             description_placeholders=placeholders,
             errors=errors,
+        )
+
+    async def async_step_import(self, import_config: dict):
+        """Import a config entry from legacy YAML."""
+        # Use username as stable unique_id
+        await self.async_set_unique_id(uuid=self._getId(dict))
+        self._abort_if_unique_id_configured()
+
+        data = (
+            {
+                CONF_USERNAME: import_config[CONF_USERNAME],
+                CONF_PASSWORD: import_config[CONF_PASSWORD],
+                CONF_PLANT_ID: import_config.get(CONF_PLANT_ID, 0),
+                CONF_SENSORS: import_config.get(CONF_SENSORS, SENSOR_CHOICES[1]),
+                CONF_PROVIDER_DOMAIN: import_config.get(
+                    CONF_PROVIDER_DOMAIN, DEFAULT_PROVIDER_DOMAIN
+                ),
+                CONF_PROVIDER_PATH: import_config.get(
+                    CONF_PROVIDER_PATH, DEFAULT_PROVIDER_PATH
+                ),
+                CONF_PROVIDER_PROTOCOL: import_config.get(CONF_PROVIDER_PROTOCOL, True),
+                CONF_PROVIDER_SSL: import_config.get(CONF_PROVIDER_SSL, True),
+            },
+        )
+        _LOGGER.info("Imported configuration from saj_esolar YAML: %s", data)
+        return self.async_create_entry(
+            title=self._getId(dict),
+            data=dict,
         )
 
     def _getId(self, dictionary) -> str:

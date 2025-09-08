@@ -15,7 +15,7 @@ from .const import (
     CONF_PROVIDER_DOMAIN,
     CONF_PROVIDER_PATH,
     CONF_PROVIDER_SSL,
-    CONF_USE_SSL,
+    CONF_PROVIDER_PROTOCOL,
 )
 from .coordinator import EsolarDataUpdateCoordinator
 
@@ -35,7 +35,7 @@ async def async_setup_entry(
     provider = EsolarProvider(
         configEntry.get(CONF_PROVIDER_DOMAIN),
         configEntry.get(CONF_PROVIDER_PATH),
-        configEntry.get(CONF_USE_SSL, True),
+        configEntry.get(CONF_PROVIDER_PROTOCOL, True),
         configEntry.get(CONF_PROVIDER_SSL, True),
     )
     esolarConfig = ESolarConfiguration(
