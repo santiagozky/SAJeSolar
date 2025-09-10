@@ -1,21 +1,21 @@
-"""The eSolar Greenheiss component."""
+"""The eSolar SAJ (and their resellers) component."""
 
 import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .api import EsolarApiClient, EsolarProvider, ESolarConfiguration
+from .api import EsolarApiClient, ESolarConfiguration, EsolarProvider
 from .const import (
     CONF_PASSWORD,
     CONF_PLANT_ID,
+    CONF_PROVIDER_DOMAIN,
+    CONF_PROVIDER_PATH,
+    CONF_PROVIDER_USE_SSL,
+    CONF_PROVIDER_VERIFY_SSL,
     CONF_SENSORS,
     CONF_USERNAME,
     DOMAIN,
-    CONF_PROVIDER_DOMAIN,
-    CONF_PROVIDER_PATH,
-    CONF_PROVIDER_SSL,
-    CONF_PROVIDER_PROTOCOL,
 )
 from .coordinator import EsolarDataUpdateCoordinator
 
@@ -28,15 +28,15 @@ PLATFORMS: list[str] = ["sensor"]
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities=None
 ) -> bool:
-    """Setup integration."""
+    """Setup integration config entry."""
     _LOGGER.debug("Setting up eSolar entry: %s", entry.entry_id)
     configEntry = entry.data
 
     provider = EsolarProvider(
         configEntry.get(CONF_PROVIDER_DOMAIN),
         configEntry.get(CONF_PROVIDER_PATH),
-        configEntry.get(CONF_PROVIDER_PROTOCOL, True),
-        configEntry.get(CONF_PROVIDER_SSL, True),
+        configEntry.get(CONF_PROVIDER_USE_SSL, True),
+        configEntry.get(CONF_PROVIDER_VERIFY_SSL, True),
     )
     esolarConfig = ESolarConfiguration(
         configEntry.get(CONF_USERNAME),
@@ -52,7 +52,7 @@ async def async_setup_entry(
     # Perform the first refresh
     await coordinator.async_config_entry_first_refresh()
 
-    # Store coordinator for platforms to access
+    # Store coordinator
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 

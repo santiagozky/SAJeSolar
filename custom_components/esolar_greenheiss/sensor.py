@@ -1,4 +1,4 @@
-"""Alternative for the esolar local API sensor. Unfortunally there is no public api.
+"""Sensor class for the esolar entities.
 
 This Sensor will read the private api of the eSolar portal at https://inversores-style.greenheiss.com
 """
@@ -18,7 +18,19 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, H1_SENSORS, SAJ_SENSORS, SENSOR_TYPES
+from .const import (
+    CONF_PASSWORD,
+    CONF_PROVIDER_DOMAIN,
+    CONF_PROVIDER_PATH,
+    CONF_PROVIDER_USE_SSL,
+    CONF_PROVIDER_VERIFY_SSL,
+    CONF_RESOURCES,
+    CONF_USERNAME,
+    DOMAIN,
+    H1_SENSORS,
+    SAJ_SENSORS,
+    SENSOR_TYPES,
+)
 from .coordinator import EsolarDataUpdateCoordinator
 
 CONF_PLANT_ID: Final = "plant_id"
@@ -34,36 +46,19 @@ DEVICE_TYPES = {
     2: "Battery",
 }
 
-SENSOR_PREFIX = "esolar "  # do not change.
-ATTR_MEASUREMENT = "measurement"
-ATTR_SECTION = "section"
-
-from .const import (
-    CONF_PASSWORD,
-    CONF_PROVIDER_DOMAIN,
-    CONF_PROVIDER_PATH,
-    CONF_PROVIDER_PROTOCOL,
-    CONF_PROVIDER_SSL,
-    CONF_RESOURCES,
-    CONF_USERNAME,
-    DOMAIN,
-    H1_SENSORS,
-    SAJ_SENSORS,
-)
+SENSOR_PREFIX = "esolar "  # do not change
 
 
 def _toPercentage(value: str) -> str:
     return float(value.strip("%"))
 
 
-# Migration from old saj_esolar
+# Migration from old saj_esolar yaml
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_USERNAME): cv.string,
         vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(
-            CONF_RESOURCES, default=list([*SAJ_SENSORS, *H1_SENSORS])
-        ): vol.All(  # type: ignore
+        vol.Required(CONF_RESOURCES, default=[*SAJ_SENSORS, *H1_SENSORS]): vol.All(  # type: ignore
             cv.ensure_list,
             [vol.In([*SAJ_SENSORS, *H1_SENSORS])],  # type: ignore
         ),
@@ -71,8 +66,8 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_PLANT_ID, default=0): cv.positive_int,  # type: ignore
         vol.Optional(CONF_PROVIDER_DOMAIN, default="fop.saj-electric.com"): cv.string,
         vol.Optional(CONF_PROVIDER_PATH, default="saj"): cv.string,
-        vol.Optional(CONF_PROVIDER_PROTOCOL, default="https"): cv.string,
-        vol.Optional(CONF_PROVIDER_SSL, default=True): cv.boolean,
+        vol.Optional(CONF_PROVIDER_USE_SSL, default="True"): cv.boolean,
+        vol.Optional("provider_ssl", default=True): cv.boolean,
     }
 )
 
@@ -81,9 +76,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     """Import legacy YAML config into a config entry."""
     _LOGGER.warning(
         "YAML configuration for 'saj_esolar' is deprecated. "
-        "Please remove it from configuration.yaml after migration."
+        "Please remove it from configuration.yaml after migration"
     )
-
+    _LOGGER.debug("Imported configuration: %s", config)
     # Forward the YAML data into the new config flow
     hass.async_create_task(
         hass.config_entries.flow.async_init(
@@ -107,7 +102,6 @@ async def async_setup_entry(
         sensorlist = SAJ_SENSORS
 
     for description in SENSOR_TYPES:
-        _LOGGER.debug("Setting up esolar sensor: %s", description.key)
         if description.key in sensorlist:
             sensor = SAJeSolarMeterSensor(
                 coordinator,
@@ -155,9 +149,9 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
         """Handle updated data from the coordinator."""
         energy = self.coordinator.data
         if energy is None:
-            _LOGGER.ERROR("Did not found data for SEC")
+            _LOGGER.ERROR("Did not found data for eSolar")
             return None
-
+        # find the data in the data from the coordinator based on the type of sensor this is.
         self.match_basic_cases(energy)
         ## SAJ h1
         # I dont have an H1, so this is untested
@@ -227,7 +221,7 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
                 if self._type in energy["plantList"][self.plant_id]:
                     value = energy.get("plantList", {})[self.plant_id].get(self._type)
                     self._state = value if value is not None else None
-            # there is a typo (systemPower vs systempower). came from the original integration. keeping for consistency
+            # there is a typo (systemPower vs systempower). It was present in the original integration. keeping for consistency
             case "systemPower":
                 if "systempower" in energy["plantList"][self.plant_id]:
                     value = energy.get("plantList", {})[self.plant_id].get(
@@ -432,7 +426,10 @@ class SAJeSolarMeterSensor(CoordinatorEntity, SensorEntity):
 def _get_value_from_deep(
     dictionary: dict, keys: list[str], lambda_funct: Callable[[Any], Any] = lambda x: x
 ) -> Any:
-    """Access a nested object in dictionary with a list of keys."""
+    """Access a nested object in dictionary with a list of keys.
+
+    Receives a lambda to transform the value to the right type.
+    """
     for key in keys:
         dictionary = dictionary.get(key, {})
     return lambda_funct(dictionary) if dictionary else None

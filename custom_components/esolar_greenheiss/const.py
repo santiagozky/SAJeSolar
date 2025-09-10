@@ -9,16 +9,17 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 
-DOMAIN = "esolar_greenheiss"
+DOMAIN = "saj_esolar"
 
+# configuration entry data
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SENSORS = "sensors"
 CONF_PLANT_ID = "plant_id"
 CONF_PROVIDER_DOMAIN = "provider_domain"
 CONF_PROVIDER_PATH = "provider_path"
-CONF_PROVIDER_PROTOCOL = "provider_protocol"
-CONF_PROVIDER_SSL = "provider_ssl"
+CONF_PROVIDER_USE_SSL = "provider_use_ssl"
+CONF_PROVIDER_VERIFY_SSL = "provider_verify_ssl"
 CONF_RESOURCES = "resources"
 
 DEVICE_TYPES = {
@@ -101,7 +102,7 @@ H1_SENSORS = [
     "pvPower",
     "solarPower",
 ]
-
+# all sensors supported and their description for hass
 SENSOR_TYPES: Final[tuple[SensorEntityDescription, ...]] = (
     SensorEntityDescription(
         key="nowPower",

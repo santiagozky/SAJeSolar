@@ -1,25 +1,22 @@
 {
-  "title": "eSolar Greenheiss",
+  "title": "SAJ ESolar",
   "config": {
     "step": {
       "user": {
         "data": {
           "username": "Username",
           "password": "Password",
-          "provider_domain": "Provider Domain",
-          "provider_path": "Provider Path (The string after the domain)",
-          "provider_ssl": "Verify SSL (Greenheiss users might need to uncheck this)",
-          "sensors": "Monitoring Hardware",
-          "plant_id": "Plant ID"
+          "sensors": "Monitoring Hardware"
         },
         "sections": {
           "advanced": {
             "name": "Advanced Options",
             "data": {
-              "provider_path": "Provider Path (The string after the domain)",
+              "provider_domain": "Reseller Domain (without protocol)",
+              "provider_path": "Reseller Path (The string after the domain)",
               "plant_id": "Plant ID",
-              "use_ssl": "Use SSL (https)",
-              "provider_ssl": "Verify SSL (Greenheiss users might need to uncheck this)"
+              "provider_use_ssl": "Use HTTPS",
+              "provider_verify_ssl": "Verify SSL (Greenheiss users might need to uncheck this)"
             }
           }
         },

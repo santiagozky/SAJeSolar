@@ -9,7 +9,6 @@ from homeassistant.data_entry_flow import section
 import homeassistant.helpers.config_validation as cv
 
 from .api import (
-    AUTHENTICATION_FAILED,
     UNKNOWN_AUTH_ERROR,
     ApiAuthError,
     ApiError,
@@ -22,11 +21,11 @@ from .const import (
     CONF_PLANT_ID,
     CONF_PROVIDER_DOMAIN,
     CONF_PROVIDER_PATH,
-    CONF_PROVIDER_SSL,
-    CONF_PROVIDER_PROTOCOL,
+    CONF_PROVIDER_USE_SSL,
+    CONF_PROVIDER_VERIFY_SSL,
+    CONF_SENSORS,
     CONF_USERNAME,
     DOMAIN,
-    CONF_SENSORS,
 )
 
 DEFAULT_PROVIDER_DOMAIN = "greenheiss-portal.saj-electric.com"
@@ -54,12 +53,15 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             config = self._flatten_section(user_input)
+            # remove / from the path in case the user added it.
+            if config[CONF_PROVIDER_PATH] is not None:
+                config[CONF_PROVIDER_PATH] = config[CONF_PROVIDER_PATH].strip("/")
             try:
                 provider = EsolarProvider(
                     config[CONF_PROVIDER_DOMAIN],
                     config[CONF_PROVIDER_PATH],
-                    "https",
-                    config[CONF_PROVIDER_SSL],
+                    config[CONF_PROVIDER_USE_SSL],
+                    config[CONF_PROVIDER_VERIFY_SSL],
                 )
                 meterData = ESolarConfiguration(
                     config[CONF_USERNAME],
@@ -78,19 +80,19 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = str(err)
             except Exception:
                 _LOGGER.exception("Unexpected exception")
-                errors["base"] = api.UNKNOWN_AUTH_ERROR
+                errors["base"] = UNKNOWN_AUTH_ERROR
 
             if len(errors) == 0:
                 # all good
-                uuid = self._getId(user_input)
+                uuid = self._getId(config)
                 # TODO:the id is username@provider_domain.
                 # this might cause issues if we allow to reconfigure the username or
                 # allow multiples configurations or plants
-                # maybe using the planyid would be better?
+                # maybe using the plantid would be better?
                 await self.async_set_unique_id(uuid)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=self._getId(user_input),
+                    title=uuid,
                     data=config,
                 )
 
@@ -99,9 +101,6 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_USERNAME): str,
                 vol.Required(CONF_PASSWORD): str,
-                vol.Optional(
-                    CONF_PROVIDER_DOMAIN, default=DEFAULT_PROVIDER_DOMAIN
-                ): str,
                 vol.Optional("sensors", default=SENSOR_CHOICES[1]): vol.In(
                     SENSOR_CHOICES
                 ),
@@ -109,11 +108,14 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Schema(
                         {
                             vol.Optional(
+                                CONF_PROVIDER_DOMAIN, default=DEFAULT_PROVIDER_DOMAIN
+                            ): str,
+                            vol.Optional(
                                 CONF_PROVIDER_PATH, default=DEFAULT_PROVIDER_PATH
                             ): str,
                             vol.Optional(CONF_PLANT_ID, default=0): cv.positive_int,
-                            vol.Required(CONF_PROVIDER_PROTOCOL, default=True): bool,
-                            vol.Required(CONF_PROVIDER_SSL, default=True): bool,
+                            vol.Required(CONF_PROVIDER_USE_SSL, default=True): bool,
+                            vol.Required(CONF_PROVIDER_VERIFY_SSL, default=True): bool,
                         }
                     ),
                     # Whether or not the section is initially collapsed (default = False)
@@ -132,16 +134,17 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self.hass.config_entries.async_get_entry(entry_id)
 
         if user_input is not None:
+            new_data = {**entry.data, **user_input}
             try:
                 provider = EsolarProvider(
-                    user_input.get("provider_domain", DEFAULT_PROVIDER_DOMAIN),
-                    user_input.get("provider_path", DEFAULT_PROVIDER_PATH),
-                    "https",
-                    user_input.get("provider_ssl", DEFAULT_PROVIDER_SSL),
+                    new_data.get(CONF_PROVIDER_DOMAIN, DEFAULT_PROVIDER_DOMAIN),
+                    new_data.get(CONF_PROVIDER_PATH, DEFAULT_PROVIDER_PATH),
+                    new_data.get(CONF_PROVIDER_USE_SSL, True),
+                    new_data.get(CONF_PROVIDER_VERIFY_SSL, DEFAULT_PROVIDER_SSL),
                 )
                 config = ESolarConfiguration(
-                    user_input[CONF_USERNAME],
-                    user_input[CONF_PASSWORD],
+                    new_data[CONF_USERNAME],
+                    new_data[CONF_PASSWORD],
                     [],
                     0,
                     provider,
@@ -156,12 +159,14 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = str(err)
             except Exception:
                 _LOGGER.exception("Unexpected exception")
-                errors["base"] = api.UNKNOWN_AUTH_ERROR
+                errors["base"] = UNKNOWN_AUTH_ERROR
 
             if not errors:
                 # Update the existing config entry
                 new_data = {**entry.data, **user_input}
                 self.hass.config_entries.async_update_entry(entry, data=new_data)
+                # reload
+                await self.hass.config_entries.async_reload(self._entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
         # only password. changing username would likely break energy dashboard
@@ -172,8 +177,8 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
         placeholders = {
-            "username": self.config_entry.data[CONF_USERNAME],
-            "provider_domain": self.config_entry.data.get(CONF_PROVIDER_DOMAIN),
+            "username": entry.data[CONF_USERNAME],
+            "provider_domain": entry.data.get(CONF_PROVIDER_DOMAIN),
         }
 
         return self.async_show_form(
@@ -186,7 +191,8 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, import_config: dict):
         """Import a config entry from legacy YAML."""
         # Use username as stable unique_id
-        await self.async_set_unique_id(uuid=self._getId(dict))
+        uuid = self._getId(import_config)
+        await self.async_set_unique_id(uuid)
         self._abort_if_unique_id_configured()
 
         data = (
@@ -201,14 +207,15 @@ class EsolarGreenheissFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PROVIDER_PATH: import_config.get(
                     CONF_PROVIDER_PATH, DEFAULT_PROVIDER_PATH
                 ),
-                CONF_PROVIDER_PROTOCOL: import_config.get(CONF_PROVIDER_PROTOCOL, True),
-                CONF_PROVIDER_SSL: import_config.get(CONF_PROVIDER_SSL, True),
+                CONF_PROVIDER_USE_SSL: import_config.get(CONF_PROVIDER_USE_SSL, True),
+                # migrate the old provider_ssl property to a better named property
+                CONF_PROVIDER_VERIFY_SSL: import_config.get("provider_ssl", True),
             },
         )
         _LOGGER.info("Imported configuration from saj_esolar YAML: %s", data)
         return self.async_create_entry(
-            title=self._getId(dict),
-            data=dict,
+            title=uuid,
+            data=import_config,
         )
 
     def _getId(self, dictionary) -> str:

@@ -9,8 +9,9 @@ import aiohttp
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.exceptions import HomeAssistantError
 
-from .const import DEVICE_TYPES
+from .const import DEVICE_TYPES, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,19 +38,19 @@ class EsolarProvider:
     """Handless the information of the url of a particular esolar provider (e.g. saj, greenheiss)."""
 
     def __init__(
-        self, host: str, path: str, protocol: str = "https", verify_ssl: bool = True
+        self, host: str, path: str, use_https: bool = True, verify_ssl: bool = True
     ) -> None:
         """Initialize the sensor with the specified host, path, and protocol.
 
         Args:
             host (str): The hostname or IP address of the target device.
             path (str): The API or resource path to access on the device.
-            protocol (str): The communication protocol to use (e.g., 'http', 'https').
+            use_https (str): if https should be used (defaults true).
             verify_ssl (bool): Whether to verify SSL certificates. Default to true.
         """
         self.host = host
         self.path = path
-        self.protocol = "https"
+        self.protocol = "https" if use_https else "http"
         self.verify_ssl = verify_ssl
 
     def getBaseDomain(self):
@@ -93,11 +94,11 @@ class ESolarConfiguration:
         self._data = None
 
 
-class ApiError(Exception):
+class ApiError(HomeAssistantError):
     """Custom exception for API errors."""
 
 
-class ApiAuthError(Exception):
+class ApiAuthError(HomeAssistantError):
     """Custom exception for API authentication errors."""
 
 
@@ -122,19 +123,17 @@ class EsolarApiClient:
         self.password = config.password
         self._session = async_create_clientsession(
             hass, verify_ssl=self.provider.getVerifySSL()
-        )  # some providers have broken SSL chains
+        )  # some providers have SSL chains not accepted by hass
 
     async def fetch_data(self):
         """Fetch and aggregate data from the eSolar site."""
-        _LOGGER.debug("fetch_data called")
         data = {}
         try:
             today = date.today()
             clientDate = today.strftime("%Y-%m-%d")
             # Make sure we have a valid session cookie
             await self.verifyLogin()
-            # Get API Plant info from Esolar Portal
-            url2 = f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
+
             headers = {
                 "Connection": "keep-alive",
                 "sec-ch-ua": '" Not;A Brand";v="99", "Google Chrome";v="91", "Chromium";v="91"',
@@ -151,46 +150,68 @@ class EsolarApiClient:
                 "Referer": f"{self.provider.getBaseUrl()}/monitor/home/index",
                 "Accept-Language": "nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7",
             }
+            # Get list of plants from esolar to get configured plant
+            url_userPlantList = (
+                f"{self.provider.getBaseUrl()}/monitor/site/getUserPlantList"
+            )
 
-            payload2 = f"pageNo=&pageSize=&orderByIndex=&officeId=&clientDate={clientDate}&runningState=&selectInputType=1&plantName=&deviceSn=&type=&countryCode=&isRename=&isTimeError=&systemPowerLeast=&systemPowerMost="
-            response2 = await self._session.post(url2, headers=headers, data=payload2)
+            payload_userPlantList = f"pageNo=&pageSize=&orderByIndex=&officeId=&clientDate={clientDate}&runningState=&selectInputType=1&plantName=&deviceSn=&type=&countryCode=&isRename=&isTimeError=&systemPowerLeast=&systemPowerMost="
+            response_userPlantList = await self._session.post(
+                url_userPlantList, headers=headers, data=payload_userPlantList
+            )
 
-            if response2.status != 200:
-                _LOGGER.error("%s returned %s", response2.url, response2.status)
+            if response_userPlantList.status != 200:
+                _LOGGER.error(
+                    "%s returned %s",
+                    response_userPlantList.url,
+                    response_userPlantList.status,
+                )
                 raise ApiError("Error fetching plant info from eSolar API")
 
-            plantInfo = await response2.json()
-            plantuid = plantInfo["plantList"][self.config.plant_id]["plantuid"]
+            plantListInfo = await response_userPlantList.json()
+            plantuid = plantListInfo["plantList"][self.config.plant_id]["plantuid"]
 
-            # Get API Plant Solar Details
-            url3 = f"{self.provider.getBaseUrl()}/monitor/site/getPlantDetailInfo"
-            payload3 = f"plantuid={plantuid}&clientDate={clientDate}"
+            # Get the details of the configuredd plant
+            url_plantDetail = (
+                f"{self.provider.getBaseUrl()}/monitor/site/getPlantDetailInfo"
+            )
+            payload_plantDetail = f"plantuid={plantuid}&clientDate={clientDate}"
 
-            response3 = await self._session.post(url3, headers=headers, data=payload3)
+            response_plantDetail = await self._session.post(
+                url_plantDetail, headers=headers, data=payload_plantDetail
+            )
 
-            if response3.status != 200:
-                _LOGGER.error("%s returned %s", response3.url, response3.status)
+            if response_plantDetail.status != 200:
+                _LOGGER.error(
+                    "%s returned %s",
+                    response_plantDetail.url,
+                    response_plantDetail.status,
+                )
                 raise ApiError("Error fetching plant details from eSolar API")
 
-            plantDetails = await response3.json()
+            plantDetails = await response_plantDetail.json()
             _LOGGER.debug("plantDetails: %s", plantDetails)
-            plantDetails.update(plantInfo)
+            plantDetails.update(plantListInfo)
 
-            devicesInfoUrl = (
+            # device info. provide info on hardware devices.
+            # some of it is required for subsequent requests.
+            url_devicesInfo = (
                 f"{self.provider.getBaseUrl()}/cloudMonitor/device/findDevicePageList"
             )
-            devicesInfoPayload = f"officeId=&pageNo=&pageSize=&orderName=1&orderType=2&plantuid={plantuid}&deviceStatus=&localDate=&localMonth="
-            deviceInfoReponse = await self._session.post(
-                devicesInfoUrl, headers=headers, data=devicesInfoPayload
+            payload_devicesInfo = f"officeId=&pageNo=&pageSize=&orderName=1&orderType=2&plantuid={plantuid}&deviceStatus=&localDate=&localMonth="
+            response_deviceInfo = await self._session.post(
+                url_devicesInfo, headers=headers, data=payload_devicesInfo
             )
-            if deviceInfoReponse.status != 200:
+            if response_deviceInfo.status != 200:
                 _LOGGER.error(
-                    "%s returned %s", deviceInfoReponse.url, deviceInfoReponse.status
+                    "%s returned %s",
+                    response_deviceInfo.url,
+                    response_deviceInfo.status,
                 )
                 raise ApiError("Error fetching device info from eSolar API")
 
-            devicesInfoData = await deviceInfoReponse.json()
-            plantDetails.update(devicesInfoData)
+            data_devicesInfo = await response_deviceInfo.json()
+            plantDetails.update(data_devicesInfo)
             if self.config.sensors == "h1":
                 deviceSnArr = next(
                     (
@@ -215,16 +236,20 @@ class EsolarApiClient:
             chartYear = today.strftime("%Y")
             epochmilliseconds = int(datetime.now(UTC).timestamp() * 1000)
             elecDevicesn = deviceSnArr if self.config.sensors == "h1" else ""
-            url4 = f"{self.provider.getBaseUrl()}/monitor/site/getPlantDetailChart2?plantuid={plantuid}&chartDateType=1&energyType=0&clientDate={clientDate}&deviceSnArr={deviceSnArr}&chartCountType=2&previousChartDay={previousChartDay}&nextChartDay={nextChartDay}&chartDay={chartDay}&previousChartMonth={previousChartMonth}&nextChartMonth={nextChartMonth}&chartMonth={chartMonth}&previousChartYear={previousChartYear}&nextChartYear={nextChartYear}&chartYear={chartYear}&elecDevicesn={elecDevicesn}&_={epochmilliseconds}"
-            # _LOGGER.error(f"PlantCharts URL: {url4}")
-            response4 = await self._session.post(url4, headers=headers)
+            url_plantDetailChart2 = f"{self.provider.getBaseUrl()}/monitor/site/getPlantDetailChart2?plantuid={plantuid}&chartDateType=1&energyType=0&clientDate={clientDate}&deviceSnArr={deviceSnArr}&chartCountType=2&previousChartDay={previousChartDay}&nextChartDay={nextChartDay}&chartDay={chartDay}&previousChartMonth={previousChartMonth}&nextChartMonth={nextChartMonth}&chartMonth={chartMonth}&previousChartYear={previousChartYear}&nextChartYear={nextChartYear}&chartYear={chartYear}&elecDevicesn={elecDevicesn}&_={epochmilliseconds}"
+            response_PlantDetailChart2 = await self._session.post(
+                url_plantDetailChart2, headers=headers
+            )
 
-            if response4.status != 200:
-                _LOGGER.error("%s returned %s", response4.url, response4.status)
+            if response_PlantDetailChart2.status != 200:
+                _LOGGER.error(
+                    "%s returned %s",
+                    response_PlantDetailChart2.url,
+                    response_PlantDetailChart2.status,
+                )
                 raise ApiError("Error fetching plant charts from eSolar API")
 
-            plantcharts = await response4.json()
-            # _LOGGER.error(f"PlantCharts: {plantcharts}")
+            plantcharts = await response_PlantDetailChart2.json()
             plantDetails.update(plantcharts)
 
             # H1 Module
@@ -421,6 +446,7 @@ class EsolarApiClient:
 
     async def verifyLogin(self) -> None:
         """Verify login to eSolar site.
+
         The eSolar site uses a form based login that returns a redirect and sets a cookie on success.
         The cookie is managed for us by the aiohttp session. So subsequent calls using the same session will be authenticated.
         """
@@ -468,7 +494,7 @@ class EsolarApiClient:
         # a good login returns a 302/303 to the dashboard
         _LOGGER.debug("%s returned %s", response.url, response.status)
         if response.status in {200, 401, 403}:
-            raise ApiAuthError(messages.AUTHENTICATION_FAILED)
+            raise ApiAuthError(AUTHENTICATION_FAILED)
         if response.status in {302, 303} and "Location" in response.headers:
             _LOGGER.debug(
                 "apparently successfull redirect %s, redirecting to %s",
@@ -476,4 +502,4 @@ class EsolarApiClient:
                 response.headers["Location"],
             )
             return
-        raise ApiAuthError(messages.UNKNOWN_AUTH_ERROR)
+        raise ApiAuthError(UNKNOWN_AUTH_ERROR)
